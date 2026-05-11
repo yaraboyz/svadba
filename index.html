@@ -2609,6 +2609,7 @@
         seg.querySelectorAll('button').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         seg.dataset.value = btn.dataset.v;
+        clearFieldErrorIn(seg);
 
         // attending: no companion field anymore
         if (name === 'attending'){
@@ -2635,6 +2636,7 @@
   document.querySelectorAll('.chips').forEach(group => {
     group.querySelectorAll('.chip').forEach(chip => {
       chip.addEventListener('click', () => {
+        clearFieldErrorIn(group);
         // "none" is exclusive
         if (chip.dataset.v === 'none'){
           const willActivate = !chip.classList.contains('active');
@@ -2705,8 +2707,80 @@
     window.scrollTo({top, behavior:'smooth'});
   }
 
+  // ---- Required-fields validation ----
+  function flagFieldError(el, msg){
+    const container = el.closest('.field');
+    if (!container) return;
+    let err = container.querySelector('.field-error');
+    if (!err){
+      err = document.createElement('div');
+      err.className = 'field-error';
+      err.style.cssText = 'margin-top:10px;color:#a85f44;font-size:14px;font-style:italic;';
+      container.appendChild(err);
+    }
+    err.textContent = msg;
+  }
+  function clearFieldErrorIn(el){
+    const container = el.closest('.field');
+    if (!container) return;
+    const err = container.querySelector('.field-error');
+    if (err) err.remove();
+  }
+  function clearAllFieldErrors(){
+    document.querySelectorAll('.field-error').forEach(e => e.remove());
+  }
+
+  // Очистка ошибки в условных текстовых полях при вводе.
+  ['part_stay_dates', 'allergy_text'].forEach(n => {
+    const el = form[n];
+    if (el) el.addEventListener('input', () => clearFieldErrorIn(el));
+  });
+
+  function validateRequiredFields(){
+    const checks = [
+      { el: document.querySelector('.seg[data-name="attending"]'),
+        ok: () => getSegValue('attending') !== '',
+        msg: 'Выберите вариант ответа' },
+      { el: document.querySelector('.seg[data-name="full_stay"]'),
+        ok: () => getSegValue('full_stay') !== '',
+        msg: 'Выберите вариант ответа' },
+      { el: form.part_stay_dates,
+        ok: () => getSegValue('full_stay') !== 'part' || form.part_stay_dates.value.trim().length > 0,
+        msg: 'Напишите, на какие именно дни остаётесь' },
+      { el: document.querySelector('.seg[data-name="housing"]'),
+        ok: () => getSegValue('housing') !== '',
+        msg: 'Выберите вариант ответа' },
+      { el: document.querySelector('.seg[data-name="allergy"]'),
+        ok: () => getSegValue('allergy') !== '',
+        msg: 'Выберите вариант ответа' },
+      { el: form.allergy_text,
+        ok: () => getSegValue('allergy') !== 'yes' || form.allergy_text.value.trim().length > 0,
+        msg: 'Опишите, на что у вас аллергия' },
+      { el: document.querySelector('.chips[data-name="drinks"]'),
+        ok: () => document.querySelectorAll('.chips[data-name="drinks"] .chip.active').length > 0,
+        msg: 'Выберите хотя бы один вариант (можно «Безалкогольное»)' }
+    ];
+
+    let firstInvalid = null;
+    for (const c of checks){
+      if (!c.ok()){
+        flagFieldError(c.el, c.msg);
+        if (!firstInvalid) firstInvalid = c.el;
+      }
+    }
+    return firstInvalid;
+  }
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    clearAllFieldErrors();
+    const firstInvalid = validateRequiredFields();
+    if (firstInvalid){
+      const top = firstInvalid.getBoundingClientRect().top + window.scrollY - 120;
+      window.scrollTo({ top, behavior: 'smooth' });
+      return;
+    }
 
     // Validate dog oath signature
     const sigInput = form.oath_signature;
